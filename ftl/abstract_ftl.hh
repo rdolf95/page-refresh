@@ -47,6 +47,8 @@ class AbstractFTL : public StatObject {
   virtual ~AbstractFTL() {}
 
   virtual bool initialize() = 0;
+  
+  virtual void doRefresh() = 0;
 
   virtual void read(Request &, uint64_t &) = 0;
   virtual void write(Request &, uint64_t &) = 0;

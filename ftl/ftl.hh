@@ -56,6 +56,8 @@ class FTL : public StatObject {
   void write(Request &, uint64_t &);
   void trim(Request &, uint64_t &);
 
+  void refresh();
+
   void format(LPNRange &, uint64_t &);
 
   Parameter *getInfo();

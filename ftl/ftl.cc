@@ -21,6 +21,8 @@
 
 #include "ftl/page_mapping.hh"
 
+extern SimpleSSD::FTL::FTL *ftl;
+
 namespace SimpleSSD {
 
 namespace FTL {
@@ -58,6 +60,13 @@ FTL::FTL(ConfigReader &c, DRAM::AbstractDRAM *d) : conf(c), pDRAM(d) {
 
   // Initialize pFTL
   pFTL->initialize();
+
+  //for periodic refresh
+  ftl = this;
+}
+
+void FTL::refresh(){
+  pFTL->doRefresh();
 }
 
 FTL::~FTL() {

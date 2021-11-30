@@ -25,6 +25,7 @@
 
 #include "util/algorithm.hh"
 #include "util/bitset.hh"
+#include "ftl/bloom_filter.hpp"
 
 namespace SimpleSSD {
 
@@ -180,7 +181,64 @@ bool PageMapping::initialize() {
              (int64_t)(invalid - nPagesToInvalidate));
   debugprint(LOG_FTL_PAGE_MAPPING, "Initialization finished");
 
+  //initialize refresh
+  unsigned int random_seed = 0xA5A5A5A5;
+  int num_bf = 10;
+  refresh_time = refresh_period;
+  //multi level bloom filter
+  for (int i=0; i<num_bf; i++){
+    bloom_parameters parameters;
+
+    parameters.projected_element_count = 100;
+    parameters.false_positive_probability = 0.0001; // 1 in 10000
+    parameters.random_seed = random_seed++;
+
+    parameters.compute_optimal_parameters();
+    bfs.push_back(bloom_filter(parameters));
+  }
   return true;
+}
+
+void PageMapping::doRefresh(){
+  int num_layer = 10000;
+  int target_bf = 0;
+  int RC_copy = stat.refreshCount;
+
+  while (target_bf<bfs.size()-1){
+    if (RC_copy%2 == 0){
+      target_bf++;
+      RC_copy /= 2;
+    }
+    else{
+      break;
+    }
+  }
+
+  for (int i=0; i<num_layer;i++){
+    if (bfs[target_bf].contains(i)){
+      continue;
+      //refresh layer
+    }
+  }
+  stat.refreshCount++;
+}
+
+// insert to bloom filter depending on its retention capability
+void PageMapping::setRefreshPeriod(uint32_t block_id, uint32_t layer_id, uint64_t rtc){
+  auto item = std::pair<uint32_t,uint32_t>(block_id, layer_id);
+  int factor = 0;
+  int refresh_slot = rtc/refresh_time;
+  while (refresh_slot != 0){
+    refresh_slot = refresh_slot>>1;
+    factor++;
+    if (factor == bfs.size()){
+      break;
+    }
+  }
+  while(factor<bfs.size()){
+    bfs[factor].insert(item);
+    factor++;
+  }
 }
 
 void PageMapping::read(Request &req, uint64_t &tick) {
@@ -955,6 +1013,10 @@ void PageMapping::getStatList(std::vector<Stats> &list, std::string prefix) {
   temp.desc = "Total copied valid pages during GC";
   list.push_back(temp);
 
+  temp.name = prefix + "page_mapping.refresh.count";
+  temp.desc = "Total refresh count";
+  list.push_back(temp);
+
   // For the exact definition, see following paper:
   // Li, Yongkun, Patrick PC Lee, and John Lui.
   // "Stochastic modeling of large-scale solid-state storage systems: analysis,
@@ -969,6 +1031,7 @@ void PageMapping::getStatValues(std::vector<double> &values) {
   values.push_back(stat.reclaimedBlocks);
   values.push_back(stat.validSuperPageCopies);
   values.push_back(stat.validPageCopies);
+  values.push_back(stat.refreshCount);
   values.push_back(calculateWearLeveling());
 }
 

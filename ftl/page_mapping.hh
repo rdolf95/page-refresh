@@ -28,6 +28,9 @@
 #include "ftl/common/block.hh"
 #include "ftl/ftl.hh"
 #include "pal/pal.hh"
+#include "ftl/bloom_filter.hpp"
+
+extern uint64_t refresh_period;
 
 namespace SimpleSSD {
 
@@ -51,12 +54,16 @@ class PageMapping : public AbstractFTL {
   bool bReclaimMore;
   bool bRandomTweak;
   uint32_t bitsetSize;
+  std::vector<bloom_filter> bfs;
+  uint64_t refresh_time; //refresh period
+  void setRefreshPeriod(uint32_t block_id, uint32_t layer_id, uint64_t rtc);
 
   struct {
     uint64_t gcCount;
     uint64_t reclaimedBlocks;
     uint64_t validSuperPageCopies;
     uint64_t validPageCopies;
+    uint64_t refreshCount;
   } stat;
 
   float freeBlockRatio();
@@ -81,6 +88,8 @@ class PageMapping : public AbstractFTL {
   ~PageMapping();
 
   bool initialize() override;
+  
+  void doRefresh() override;
 
   void read(Request &, uint64_t &) override;
   void write(Request &, uint64_t &) override;
